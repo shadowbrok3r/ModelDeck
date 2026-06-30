@@ -1,0 +1,58 @@
+/* Galaxy theme for dioxus components - matches assets/styles.css */
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+body {
+  color: var(--star-white);
+  font-family: 'Exo 2', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html[data-theme="dark"] {
+  --dark: initial;
+  --light: ;
+}
+
+html[data-theme="light"] {
+  --dark: ;
+  --light: initial;
+}
+
+:root {
+  /* Map component vars to Galaxy palette */
+  --primary-color: #000000;
+  --primary-color-1: #030308;
+  --primary-color-2: #0f0f1a;
+  --primary-color-3: #0a0a14;
+  --primary-color-4: #1a0a2e;
+  --primary-color-5: #0f0f1a;
+  --primary-color-6: rgba(139, 92, 246, 0.3);
+  --primary-color-7: #5b21b6;
+
+  --secondary-color: #f8fafc;
+  --secondary-color-1: #f8fafc;
+  --secondary-color-2: #cbd5e1;
+  --secondary-color-3: #94a3b8;
+  --secondary-color-4: #f8fafc;
+  --secondary-color-5: #94a3b8;
+  --secondary-color-6: #7c3aed;
+
+  --focused-border-color: #a855f7;
+  --primary-success-color: #22c55e;
+  --secondary-success-color: #22c55e;
+  --primary-warning-color: #fbbf24;
+  --secondary-warning-color: #f59e0b;
+  --primary-error-color: #ef4444;
+  --secondary-error-color: #ef4444;
+  --primary-info-color: #3b82f6;
+  --secondary-info-color: #60a5fa;
+
+  /* Galaxy tokens (for dialog/style.css) */
+  --star-white: #f8fafc;
+  --stardust: #94a3b8;
+  --moonlight: #cbd5e1;
+  --nebula-purple: #5b21b6;
+  --nebula-dark: #0f0f1a;
+  --aurora-purple: #a855f7;
+  --warning-red: #ef4444;
+  --shadow-deep: 0 4px 30px rgba(0, 0, 0, 0.5);
+  --shadow-nebula: 0 8px 40px rgba(139, 92, 246, 0.2);
+}

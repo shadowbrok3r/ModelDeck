@@ -1,0 +1,15 @@
+[package]
+name = "modeldeck_shared"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+chrono = { workspace = true }
+# SurrealValue is only needed server-side (hub db layer). Gated so the wasm UI and
+# the agent can depend on these types without pulling the Surreal type system.
+surrealdb-types = { version = "3.2.0-beta.2", optional = true }
+
+[features]
+default = []
+surreal = ["dep:surrealdb-types"]

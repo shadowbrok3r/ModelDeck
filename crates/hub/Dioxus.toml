@@ -1,0 +1,22 @@
+[application]
+name = "model_deck"
+default_platform = "web"
+asset_dir = "assets"
+
+# Release wasm-opt can abort on newer rustc DWARF; strip debug for stable CI/HA builds.
+[web.wasm_opt]
+debug = false
+keep_names = false
+
+[desktop]
+title = "ModelDeck"
+
+[desktop.window]
+width = 1500
+height = 950
+resizable = true
+decorations = true
+
+[bundle]
+identifier = "com.modeldeck.app"
+publisher = "ModelDeck"

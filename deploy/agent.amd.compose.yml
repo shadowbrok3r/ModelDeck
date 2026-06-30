@@ -1,0 +1,25 @@
+# ModelDeck agent for the AMD/ROCm VM (UbuntuAI-AMD).
+# Deploy on that VM:
+#   MODELDECK_AGENT_SECRET=<same-as-hub> docker compose -f agent.amd.compose.yml up -d
+#
+# jarvis is mounted at the SAME path inside the container as on the host so that
+# managed compose files the agent writes resolve identically for the host docker
+# daemon (reached via the mounted socket).
+name: modeldeck-agent
+services:
+  agent:
+    image: ghcr.io/shadowbrok3r/modeldeck-agent-amd64:latest
+    container_name: modeldeck-agent
+    restart: unless-stopped
+    ports:
+      - "9777:9777"
+    environment:
+      - MODELDECK_AGENT_SECRET=${MODELDECK_AGENT_SECRET:?set MODELDECK_AGENT_SECRET}
+      - MODELDECK_JARVIS=/home/shadowbroker/jarvis
+      - MODELDECK_ACCEL=rocm
+      - RUST_LOG=info
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/shadowbroker/jarvis:/home/shadowbroker/jarvis
+      # GPU stats are read from sysfs (no rocm-smi needed inside the container).
+      - /sys/class/drm:/sys/class/drm:ro

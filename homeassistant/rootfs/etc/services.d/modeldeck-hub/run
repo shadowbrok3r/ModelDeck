@@ -1,0 +1,21 @@
+#!/command/with-contenv bashio
+
+# Export add-on options as environment variables for the hub.
+CONFIG_PATH=/data/options.json
+if [ -f "$CONFIG_PATH" ]; then
+    for key in SURREAL_URL SURREAL_USER SURREAL_PASS MODELDECK_AGENT_SECRET HF_TOKEN; do
+        val=$(bashio::jq "$CONFIG_PATH" ".$key // empty")
+        if [ -n "$val" ]; then
+            export "$key=$val"
+            bashio::log.info "Set $key"
+        fi
+    done
+else
+    bashio::log.warning "No options.json found at $CONFIG_PATH"
+fi
+
+bashio::log.info "Starting ModelDeck hub on 0.0.0.0:8099..."
+export IP="0.0.0.0"
+export PORT="8099"
+export RUST_LOG="info,tower_http=debug,model_deck=debug"
+exec /app/model_deck

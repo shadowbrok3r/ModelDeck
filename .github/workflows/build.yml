@@ -1,0 +1,93 @@
+name: Build images
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'homeassistant/**'
+      - 'deploy/**'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+
+jobs:
+  hub:
+    name: hub ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: |
+          version="$(sed -nE 's/^version:[[:space:]]*"?([^"#]+)"?.*/\1/p' homeassistant/config.yaml | tr -d '[:space:]')"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: homeassistant
+          file: homeassistant/Dockerfile
+          push: true
+          provenance: false
+          tags: |
+            ghcr.io/shadowbrok3r/modeldeck-${{ matrix.arch }}:${{ steps.meta.outputs.version }}
+            ghcr.io/shadowbrok3r/modeldeck-${{ matrix.arch }}:latest
+          build-args: |
+            BUILD_VERSION=${{ steps.meta.outputs.version }}-${{ github.sha }}
+            BUILD_ARCH=${{ matrix.arch }}
+          cache-from: type=gha,scope=modeldeck-hub-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=modeldeck-hub-${{ matrix.arch }}
+
+  agent:
+    name: agent ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: |
+          version="$(sed -nE 's/^version:[[:space:]]*"?([^"#]+)"?.*/\1/p' homeassistant/config.yaml | tr -d '[:space:]')"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/agent.Dockerfile
+          push: true
+          provenance: false
+          tags: |
+            ghcr.io/shadowbrok3r/modeldeck-agent-${{ matrix.arch }}:${{ steps.meta.outputs.version }}
+            ghcr.io/shadowbrok3r/modeldeck-agent-${{ matrix.arch }}:latest
+          cache-from: type=gha,scope=modeldeck-agent-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=modeldeck-agent-${{ matrix.arch }}

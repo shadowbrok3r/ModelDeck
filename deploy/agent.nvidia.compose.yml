@@ -1,0 +1,32 @@
+# ModelDeck agent for the NVIDIA/CUDA VM (UbuntuAI-Nvidia).
+# Deploy on that VM:
+#   MODELDECK_AGENT_SECRET=<same-as-hub> docker compose -f agent.nvidia.compose.yml up -d
+#
+# Requests a GPU so the bundled nvidia-smi (injected by the NVIDIA container
+# runtime) can report VRAM/util. jarvis is mounted at the host path (see amd file).
+name: modeldeck-agent
+services:
+  agent:
+    image: ghcr.io/shadowbrok3r/modeldeck-agent-amd64:latest
+    container_name: modeldeck-agent
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "9777:9777"
+    environment:
+      - MODELDECK_AGENT_SECRET=${MODELDECK_AGENT_SECRET:?set MODELDECK_AGENT_SECRET}
+      - MODELDECK_JARVIS=/home/shadowbroker/jarvis
+      - MODELDECK_ACCEL=cuda
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=utility
+      - RUST_LOG=info
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/shadowbroker/jarvis:/home/shadowbroker/jarvis
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
