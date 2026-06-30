@@ -1,5 +1,11 @@
 name: Build images
 
+# Builds compile on the runner with Swatinem/rust-cache (caches the cargo registry
+# + target/ verbatim, so only changed crates recompile across runs — handles dx's
+# dual wasm+native build cleanly). The Docker images are thin runtime-only packages
+# of the artifacts. First run after a cache reset is slow (warms the cache); later
+# runs are incremental.
+
 on:
   push:
     branches: [master, main]
@@ -11,6 +17,10 @@ on:
       - 'deploy/**'
       - '.github/workflows/build.yml'
   workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'   # incremental hurts cache reuse in CI; rely on dep cache
 
 jobs:
   hub:
@@ -29,10 +39,50 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+
       - id: meta
         run: |
           version="$(sed -nE 's/^version:[[:space:]]*"?([^"#]+)"?.*/\1/p' homeassistant/config.yaml | tr -d '[:space:]')"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: hub-${{ matrix.arch }}
+          cache-all-crates: true
+
+      - name: Restore dx CLI
+        id: dxcache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/dx
+          key: dx-0.7.9-${{ matrix.arch }}
+
+      - name: Install dx CLI
+        if: steps.dxcache.outputs.cache-hit != 'true'
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash || true
+          cargo binstall -y dioxus-cli@0.7.9 || cargo install dioxus-cli@0.7.9 --locked
+          dx --version
+
+      - name: Build web bundle
+        working-directory: crates/hub
+        run: |
+          touch .env
+          dx build --release --platform web --debug-symbols false
+
+      - name: Stage runtime context
+        run: |
+          mkdir -p ctx
+          cp target/dx/model_deck/release/web/server ctx/model_deck
+          cp -r target/dx/model_deck/release/web/public ctx/public
+          cp -r homeassistant/rootfs ctx/rootfs
+          cp homeassistant/runtime.Dockerfile ctx/Dockerfile
+
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -41,18 +91,14 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
-          context: homeassistant
-          file: homeassistant/Dockerfile
+          context: ctx
           push: true
           provenance: false
           tags: |
             ghcr.io/shadowbrok3r/modeldeck-${{ matrix.arch }}:${{ steps.meta.outputs.version }}
             ghcr.io/shadowbrok3r/modeldeck-${{ matrix.arch }}:latest
-          build-args: |
-            BUILD_VERSION=${{ steps.meta.outputs.version }}-${{ github.sha }}
-            BUILD_ARCH=${{ matrix.arch }}
-          cache-from: type=gha,scope=modeldeck-hub-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=modeldeck-hub-${{ matrix.arch }}
+          cache-from: type=gha,scope=modeldeck-hub-rt-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=modeldeck-hub-rt-${{ matrix.arch }}
 
   agent:
     name: agent ${{ matrix.arch }}
@@ -70,10 +116,27 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+
       - id: meta
         run: |
           version="$(sed -nE 's/^version:[[:space:]]*"?([^"#]+)"?.*/\1/p' homeassistant/config.yaml | tr -d '[:space:]')"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: agent-${{ matrix.arch }}
+          cache-all-crates: true
+
+      - name: Build agent
+        run: cargo build -p modeldeck-agent --release --locked
+
+      - name: Stage runtime context
+        run: |
+          mkdir -p actx
+          cp target/release/modeldeck-agent actx/modeldeck-agent
+          cp deploy/agent.runtime.Dockerfile actx/Dockerfile
+
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -82,12 +145,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
-          context: .
-          file: deploy/agent.Dockerfile
+          context: actx
           push: true
           provenance: false
           tags: |
             ghcr.io/shadowbrok3r/modeldeck-agent-${{ matrix.arch }}:${{ steps.meta.outputs.version }}
             ghcr.io/shadowbrok3r/modeldeck-agent-${{ matrix.arch }}:latest
-          cache-from: type=gha,scope=modeldeck-agent-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=modeldeck-agent-${{ matrix.arch }}
+          cache-from: type=gha,scope=modeldeck-agent-rt-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=modeldeck-agent-rt-${{ matrix.arch }}
