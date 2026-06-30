@@ -264,11 +264,18 @@ fn App() -> Element {
             }
 
             div { class: "container px-6 py-6",
-                {match *view.read() {
-                    MainView::Models => rsx! { ModelsView { vm } },
-                    MainView::Profiles => rsx! { ProfilesView { vm, vms, draft } },
-                    MainView::Files => rsx! { FilesView { vm } },
-                    MainView::System => rsx! { SystemView { vm } },
+                // Don't mount the data views (which fetch per-VM) until a VM is
+                // selected, or they fire server fns with an empty vm id on first paint.
+                {if vm.read().is_empty() {
+                    rsx! { div { class: "card-cosmic p-8 text-center text-stardust",
+                        "No VM selected. Add a VM target in Settings, then pick it above." } }
+                } else {
+                    match *view.read() {
+                        MainView::Models => rsx! { ModelsView { vm } },
+                        MainView::Profiles => rsx! { ProfilesView { vm, vms, draft } },
+                        MainView::Files => rsx! { FilesView { vm } },
+                        MainView::System => rsx! { SystemView { vm } },
+                    }
                 }}
             }
 

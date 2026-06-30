@@ -48,6 +48,16 @@ pub async fn ensure_db_init() -> Result<(), String> {
                 }
             }
             DB.use_ns(NS).use_db(DB_NAME).await.map_err(|e| e.to_string())?;
+            // Self-provision the tables. This instance rejects SELECT on an
+            // undefined table, so define them up front (idempotent).
+            DB.query(
+                "DEFINE TABLE IF NOT EXISTS vm_target SCHEMALESS; \
+                 DEFINE TABLE IF NOT EXISTS profile SCHEMALESS; \
+                 DEFINE TABLE IF NOT EXISTS active SCHEMALESS; \
+                 DEFINE INDEX IF NOT EXISTS profile_vm ON profile FIELDS vm;",
+            )
+            .await
+            .map_err(|e| e.to_string())?;
             eprintln!("ModelDeck connected to SurrealDB {url} (ns:{NS} db:{DB_NAME})");
             Ok(())
         })

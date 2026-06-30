@@ -1,6 +1,6 @@
 name: "ModelDeck"
 description: "Manage docker/AI stacks on the UbuntuAI VMs: swap known-good LLM service profiles, edit compose/Dockerfiles, manage + download models, watch GPU/containers"
-version: "0.1.0"
+version: "0.1.1"
 image: "ghcr.io/shadowbrok3r/modeldeck-{arch}"
 slug: "model_deck"
 init: false

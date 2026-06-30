@@ -256,7 +256,9 @@ async fn rocm_stats() -> Vec<GpuStats> {
             name: "AMD GPU".to_string(),
             mem_total_mb: total,
             mem_used_mb: used.unwrap_or(0),
-            util_pct: read(base.join("gpu_busy_percent")).and_then(|s| s.parse().ok()),
+            util_pct: read(base.join("gpu_busy_percent"))
+                .and_then(|s| s.parse::<f32>().ok())
+                .map(|v| v.clamp(0.0, 100.0)),
             temp_c: None,
         });
     }
