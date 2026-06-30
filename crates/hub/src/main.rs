@@ -1043,7 +1043,7 @@ fn SettingsDialog(vms: Signal<Vec<VmTarget>>, on_close: EventHandler<()>) -> Ele
                 }
                 div { class: "flex gap-2 mt-3",
                     button { class: "btn-cosmic",
-                        onclick: move |_| rows.write().push(VmTarget { jarvis_path: "/home/shadowbroker/jarvis".into(), ..Default::default() }),
+                        onclick: move |_| rows.write().push(VmTarget { jarvis_path: "/opt/jarvis".into(), ..Default::default() }),
                         "+ Add VM"
                     }
                     button { class: "btn-cosmic",

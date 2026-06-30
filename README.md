@@ -1,8 +1,8 @@
 # ModelDeck
 
-A Rust/Dioxus control plane for the docker/AI stacks on **UbuntuAI-AMD** (VM 102,
-ROCm/gfx1201) and **UbuntuAI-Nvidia** (VM 107, CUDA), packaged as a Home Assistant
-add-on with GitHub CI → GHCR — a sibling of [OrderTracker](https://github.com/shadowbrok3r/OrderTracker).
+A Rust/Dioxus control plane for the docker/AI stacks on an **AMD/ROCm** host and an
+**NVIDIA/CUDA** host, packaged as a Home Assistant add-on; GitHub Actions builds the
+multi-arch images to GHCR.
 
 It turns the commented-out `services:` blocks in your hand-edited
 `~/jarvis/docker-compose.yml` into first-class, swappable **service profiles**: save
@@ -22,7 +22,7 @@ HA add-on (hub, Dioxus fullstack)            AI VMs (proxmox2)
 └─────────┬──────────┘     agents mount /var/run/docker.sock + ~/jarvis
           │ profiles, vm targets, active pointer
           ▼
-   SurrealDB  ns:jarvis  db:modeldeck   (wss://surrealdb.shadowbroker.app)
+   SurrealDB  ns:jarvis  db:modeldeck   (wss://surrealdb.example.com)
 ```
 
 - **`crates/shared`** (`modeldeck_shared`) — domain types shared by all three: `ServiceProfile`,
@@ -49,7 +49,7 @@ Activating a profile (`POST /activate`) makes the agent:
 ## Deploy runbook
 
 1. **SurrealDB schema** (once):
-   `surreal sql --endpoint wss://surrealdb.shadowbroker.app --username root --password <pass> < db/schema.surql`
+   `surreal sql --endpoint wss://surrealdb.example.com --username root --password <pass> < db/schema.surql`
 2. **Push to GitHub** as `shadowbrok3r/ModelDeck` (CI builds `modeldeck-{arch}` + `modeldeck-agent-{arch}`).
 3. **Agents** — pick a shared secret, then on each VM:
    - AMD: `MODELDECK_AGENT_SECRET=… docker compose -f deploy/agent.amd.compose.yml up -d`

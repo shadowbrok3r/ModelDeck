@@ -1,4 +1,4 @@
-# ModelDeck agent for the AMD/ROCm VM (UbuntuAI-AMD).
+# ModelDeck agent for the AMD/ROCm VM.
 # Deploy on that VM:
 #   MODELDECK_AGENT_SECRET=<same-as-hub> docker compose -f agent.amd.compose.yml up -d
 #
@@ -15,11 +15,11 @@ services:
       - "9777:9777"
     environment:
       - MODELDECK_AGENT_SECRET=${MODELDECK_AGENT_SECRET:?set MODELDECK_AGENT_SECRET}
-      - MODELDECK_JARVIS=/home/shadowbroker/jarvis
+      - MODELDECK_JARVIS=/opt/jarvis
       - MODELDECK_ACCEL=rocm
       - RUST_LOG=info
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /home/shadowbroker/jarvis:/home/shadowbroker/jarvis
+      - /opt/jarvis:/opt/jarvis
       # GPU stats are read from sysfs (no rocm-smi needed inside the container).
       - /sys/class/drm:/sys/class/drm:ro

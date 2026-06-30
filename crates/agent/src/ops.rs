@@ -25,7 +25,7 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Self {
         let jarvis = std::env::var("MODELDECK_JARVIS")
-            .unwrap_or_else(|_| "/home/shadowbroker/jarvis".to_string());
+            .unwrap_or_else(|_| "/opt/jarvis".to_string());
         Config {
             secret: std::env::var("MODELDECK_AGENT_SECRET").unwrap_or_default(),
             jarvis: PathBuf::from(jarvis),

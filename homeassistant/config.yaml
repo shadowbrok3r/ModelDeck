@@ -1,6 +1,6 @@
 name: "ModelDeck"
-description: "Manage docker/AI stacks on the UbuntuAI VMs: swap known-good LLM service profiles, edit compose/Dockerfiles, manage + download models, watch GPU/containers"
-version: "0.1.2"
+description: "Manage docker/AI stacks on your GPU VMs: swap known-good LLM service profiles, edit compose/Dockerfiles, manage + download models, watch GPU/containers"
+version: "0.1.3"
 image: "ghcr.io/shadowbrok3r/modeldeck-{arch}"
 slug: "model_deck"
 init: false
@@ -17,7 +17,7 @@ panel_admin: true
 ports:
   8099/tcp: null
 options:
-  SURREAL_URL: "wss://surrealdb.shadowbroker.app"
+  SURREAL_URL: "wss://surrealdb.example.com"
   SURREAL_USER: "root"
   SURREAL_PASS: ""
   MODELDECK_AGENT_SECRET: ""

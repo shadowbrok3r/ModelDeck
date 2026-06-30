@@ -1,5 +1,5 @@
 -- ModelDeck SurrealDB schema. Run once against the shared instance as root:
---   surreal sql --endpoint wss://surrealdb.shadowbroker.app --username root \
+--   surreal sql --endpoint wss://surrealdb.example.com --username root \
 --     --password <pass> --pretty < db/schema.surql
 -- Lives in its own namespace alongside the other home-assistant apps.
 

@@ -1,4 +1,4 @@
-# ModelDeck agent for the NVIDIA/CUDA VM (UbuntuAI-Nvidia).
+# ModelDeck agent for the NVIDIA/CUDA VM.
 # Deploy on that VM:
 #   MODELDECK_AGENT_SECRET=<same-as-hub> docker compose -f agent.nvidia.compose.yml up -d
 #
@@ -15,14 +15,14 @@ services:
       - "9777:9777"
     environment:
       - MODELDECK_AGENT_SECRET=${MODELDECK_AGENT_SECRET:?set MODELDECK_AGENT_SECRET}
-      - MODELDECK_JARVIS=/home/shadowbroker/jarvis
+      - MODELDECK_JARVIS=/opt/jarvis
       - MODELDECK_ACCEL=cuda
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=utility
       - RUST_LOG=info
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /home/shadowbroker/jarvis:/home/shadowbroker/jarvis
+      - /opt/jarvis:/opt/jarvis
     deploy:
       resources:
         reservations:

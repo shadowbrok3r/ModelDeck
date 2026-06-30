@@ -125,7 +125,7 @@ pub struct VmTarget {
     pub accel: Option<String>,
     /// Base URL of this VM's agent, e.g. "http://AGENT_IP:9777".
     pub agent_url: String,
-    /// Where the jarvis tree lives on the VM, e.g. "/home/shadowbroker/jarvis".
+    /// Where the jarvis tree lives on the VM, e.g. "/opt/jarvis".
     #[serde(default)]
     pub jarvis_path: String,
     /// GPU arch tag for display, e.g. "gfx1201" / "sm_86".
