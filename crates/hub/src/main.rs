@@ -229,8 +229,9 @@ fn App() -> Element {
         document::Stylesheet { href: asset!("/assets/styles.css") }
         document::Stylesheet { href: asset!("/assets/dx-components-theme.css") }
         document::Stylesheet { href: asset!("/assets/dialog.css") }
+        document::Stylesheet { href: asset!("/assets/editor.css") }
 
-        div { class: "bg-galaxy min-h-screen",
+        div { class: "bg-galaxy mdk-shell",
             nav { class: "nav-galaxy px-6 py-4",
                 div { class: "container flex items-center justify-between flex-wrap gap-3",
                     div { class: "flex items-center gap-4 flex-wrap",
@@ -263,7 +264,10 @@ fn App() -> Element {
                 }
             }
 
-            div { class: "container px-6 py-6",
+            div {
+                // Files mode fills the viewport (only the editor scrolls); other
+                // views scroll their own content so the page chrome stays fixed.
+                class: if *view.read() == MainView::Files { "mdk-content px-6 py-4" } else { "mdk-content scroll px-6 py-6" },
                 // Don't mount the data views (which fetch per-VM) until a VM is
                 // selected, or they fire server fns with an empty vm id on first paint.
                 {if vm.read().is_empty() {
@@ -734,8 +738,79 @@ fn TiedFilesEditor(draft: Signal<Option<ServiceProfile>>) -> Element {
 }
 
 // ============================================================================
-// Files view (raw compose / Dockerfile editor)
+// Files view (compose / Dockerfile editor: Monaco with a textarea fallback)
 // ============================================================================
+
+/// Maps a filename to a Monaco language id for coloring/validation.
+fn lang_for(name: &str) -> &'static str {
+    let n = name.to_lowercase();
+    if n.contains("dockerfile") {
+        "dockerfile"
+    } else if n.ends_with(".yml") || n.ends_with(".yaml") {
+        "yaml"
+    } else if n.ends_with(".json") {
+        "json"
+    } else if n.ends_with(".toml") || n.ends_with(".ini") || n.ends_with(".env") {
+        "ini"
+    } else if n.ends_with(".sh") || n.ends_with(".bash") || n.ends_with(".zsh") {
+        "shell"
+    } else if n.ends_with(".jinja") || n.ends_with(".j2") {
+        "handlebars"
+    } else {
+        "plaintext"
+    }
+}
+
+/// Load Monaco from CDN (once) and mount it on #mdk-editor. Returns false if it
+/// can't load (e.g. ingress CSP blocks the CDN/eval) so the textarea is kept.
+const MONACO_CREATE_JS: &str = r#"
+function loadMonaco(){
+  return new Promise(function(resolve, reject){
+    if (window.monaco) return resolve();
+    if (window.__mdkLoading) { window.__mdkLoading.push(resolve); return; }
+    window.__mdkLoading = [resolve];
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js';
+    s.onerror = function(){ reject('loader'); };
+    s.onload = function(){
+      require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs' }});
+      require(['vs/editor/editor.main'], function(){
+        (window.__mdkLoading||[]).forEach(function(f){ f(); });
+        window.__mdkLoading = null;
+      });
+    };
+    document.head.appendChild(s);
+  });
+}
+try {
+  await Promise.race([ loadMonaco(), new Promise(function(_, r){ setTimeout(function(){ r('timeout'); }, 8000); }) ]);
+  var el = null, t = 0;
+  while (!(el = document.getElementById('mdk-editor')) && t < 50) { await new Promise(function(r){ setTimeout(r, 50); }); t++; }
+  if (!el) return false;
+  if (window.__mdkEditor) { try { window.__mdkEditor.dispose(); } catch(e){} }
+  window.__mdkEditor = monaco.editor.create(el, {
+    value: '', language: 'yaml', theme: 'vs-dark',
+    automaticLayout: true, minimap: { enabled: false },
+    scrollBeyondLastLine: false, fontSize: 12, tabSize: 2, renderWhitespace: 'selection'
+  });
+  return true;
+} catch (e) { return false; }
+"#;
+
+/// Set the editor's content + language from a payload Rust sends.
+const MONACO_SET_JS: &str = r#"
+const m = await dioxus.recv();
+var t = 0;
+while (!window.__mdkEditor && t < 60) { await new Promise(function(r){ setTimeout(r, 100); }); t++; }
+if (window.__mdkEditor) {
+  window.__mdkEditor.setValue(m.value);
+  try { monaco.editor.setModelLanguage(window.__mdkEditor.getModel(), m.lang); } catch(e){}
+}
+return true;
+"#;
+
+/// Read the editor's current content for saving.
+const MONACO_GET_JS: &str = "return window.__mdkEditor ? window.__mdkEditor.getValue() : '';";
 
 #[component]
 fn FilesView(vm: Signal<String>) -> Element {
@@ -743,64 +818,90 @@ fn FilesView(vm: Signal<String>) -> Element {
     let mut content = use_signal(String::new);
     let mut loaded_path = use_signal(String::new);
     let mut status = use_signal(|| None::<String>);
+    let mut monaco_ready = use_signal(|| false);
+
+    // Mount Monaco once; keep the textarea fallback if it can't load.
+    use_effect(move || {
+        spawn(async move {
+            if let Ok(true) = document::eval(MONACO_CREATE_JS).join::<bool>().await {
+                monaco_ready.set(true);
+            }
+        });
+    });
 
     let do_load = use_callback(move |p: String| {
         let v = vm();
         path.set(p.clone());
         spawn(async move {
             match api::read_file(v, p.clone()).await {
-                Ok(fp) => { content.set(fp.content); loaded_path.set(fp.path); status.set(Some(format!("Loaded {p}"))); }
+                Ok(fp) => {
+                    content.set(fp.content.clone());
+                    loaded_path.set(fp.path.clone());
+                    if monaco_ready() {
+                        let e = document::eval(MONACO_SET_JS);
+                        let _ = e.send(serde_json::json!({ "value": fp.content, "lang": lang_for(&p) }));
+                        let _ = e.join::<bool>().await;
+                    }
+                    status.set(Some(format!("Loaded {p}")));
+                }
                 Err(e) => status.set(Some(format!("Load error: {e}"))),
             }
         });
     });
 
+    let save = move |_| {
+        let v = vm();
+        let p = path.read().clone();
+        spawn(async move {
+            let text = if monaco_ready() {
+                document::eval(MONACO_GET_JS).join::<String>().await.unwrap_or_default()
+            } else {
+                content.read().clone()
+            };
+            match api::write_file(v, p.clone(), text).await {
+                Ok(()) => { app_log("INFO", format!("Saved {p}")); status.set(Some(format!("Saved {p}"))); }
+                Err(e) => status.set(Some(format!("Save error: {e}"))),
+            }
+        });
+    };
+
+    let compose_up = move |_| {
+        let v = vm();
+        let p = loaded_path.read().clone();
+        let file = if p.is_empty() { path.read().clone() } else { p };
+        spawn(async move {
+            match api::compose_up(v, file.clone(), None).await {
+                Ok(()) => app_log("INFO", format!("compose up {file}")),
+                Err(e) => app_log("ERROR", format!("compose up: {e}")),
+            }
+        });
+    };
+
     rsx! {
-        div { class: "card-cosmic p-6 mb-4",
-            div { class: "flex items-center justify-between flex-wrap gap-3 mb-3",
-                h2 { class: "text-xl font-bold text-star-white", "Files" }
-                div { class: "flex gap-2 flex-wrap",
-                    button { class: "btn-cosmic", onclick: move |_| do_load.call("docker-compose.yml".into()), "docker-compose.yml" }
+        div { class: "mdk-files",
+            div { class: "card-cosmic p-3",
+                div { class: "flex items-center gap-2 flex-wrap",
+                    h2 { class: "text-lg font-bold text-star-white mr-2", "Files" }
+                    button { class: "btn-cosmic", onclick: move |_| do_load.call("docker-compose.yml".into()), "compose" }
                     button { class: "btn-cosmic", onclick: move |_| do_load.call("Dockerfile.llama".into()), "Dockerfile.llama" }
                     button { class: "btn-cosmic", onclick: move |_| do_load.call("Dockerfile.vllm".into()), "Dockerfile.vllm" }
+                    input { r#type: "text", class: "flex-1 min-w-[180px] font-mono text-sm", placeholder: "jarvis-relative path",
+                        value: "{path}", oninput: move |e| path.set(e.value()) }
+                    button { class: "btn-cosmic", onclick: move |_| do_load.call(path.read().clone()), "Load" }
+                    button { class: "btn-nebula", onclick: save, "Save" }
+                    button { class: "btn-cosmic", onclick: compose_up, "Compose up" }
+                    {status.read().as_ref().map(|s| rsx! { span { class: "text-stardust text-sm ml-1", "{s}" } })}
                 }
             }
-            div { class: "flex gap-2 items-center",
-                input { r#type: "text", class: "flex-1 font-mono text-sm", placeholder: "jarvis-relative path",
-                    value: "{path}", oninput: move |e| path.set(e.value()) }
-                button { class: "btn-cosmic", onclick: move |_| do_load.call(path.read().clone()), "Load" }
-            }
-            {status.read().as_ref().map(|s| rsx! { p { class: "text-stardust text-sm mt-2", "{s}" } })}
-        }
-
-        div { class: "card-cosmic p-4",
-            textarea { class: "w-full font-mono text-xs min-h-[440px]", value: "{content}",
-                oninput: move |e| content.set(e.value()) }
-            div { class: "flex gap-2 mt-3 justify-end flex-wrap",
-                button { class: "btn-nebula",
-                    onclick: move |_| {
-                        let v = vm(); let p = path.read().clone(); let c = content.read().clone();
-                        spawn(async move {
-                            match api::write_file(v, p.clone(), c).await {
-                                Ok(()) => { app_log("INFO", format!("Saved {p}")); status.set(Some(format!("Saved {p}"))); }
-                                Err(e) => status.set(Some(format!("Save error: {e}"))),
-                            }
-                        });
-                    },
-                    "Save"
-                }
-                button { class: "btn-cosmic",
-                    onclick: move |_| {
-                        let v = vm(); let p = loaded_path.read().clone();
-                        let file = if p.is_empty() { path.read().clone() } else { p };
-                        spawn(async move {
-                            match api::compose_up(v, file.clone(), None).await {
-                                Ok(()) => app_log("INFO", format!("compose up {file}")),
-                                Err(e) => app_log("ERROR", format!("compose up: {e}")),
-                            }
-                        });
-                    },
-                    "Compose up"
+            div { class: "mdk-editor-wrap card-cosmic",
+                div { id: "mdk-editor" }
+                textarea {
+                    class: "mdk-editor-ta",
+                    id: "mdk-editor-ta",
+                    spellcheck: "false",
+                    style: if monaco_ready() { "display:none" } else { "" },
+                    value: "{content}",
+                    oninput: move |e| content.set(e.value()),
                 }
             }
         }
