@@ -6,11 +6,12 @@ name: Build images
 # of the artifacts. First run after a cache reset is slow (warms the cache); later
 # runs are incremental.
 #
-# RUNNER PINNED TO ubuntu-22.04 (glibc 2.35) ON PURPOSE: the runtime base images are
-# Debian bookworm (glibc 2.36). A binary linked against a newer glibc (ubuntu-24.04 =
-# 2.39) fails at runtime with "GLIBC_2.38 not found". glibc is forward-compatible, so
-# build on the OLDEST glibc that's <= the runtime's. Bump the runner only if the
-# runtime bases also move up. The gl235 cache-key suffix isolates these artifacts.
+# GLIBC: a binary must be linked against a glibc <= the runtime image's (glibc is
+# forward- but not backward-compatible). The hub needs the prebuilt `dx` CLI, which
+# itself requires glibc 2.39, so the hub builds on ubuntu-24.04 (2.39) and its runtime
+# base is Debian TRIXIE (2.41). The agent has no such tool, so it builds on
+# ubuntu-22.04 (2.35) and stays on the smaller Debian bookworm (2.36) runtime. Keep
+# each job's runner glibc <= its runtime base glibc if you change either.
 
 on:
   push:
@@ -36,9 +37,9 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runner: ubuntu-22.04
+            runner: ubuntu-24.04
           - arch: aarch64
-            runner: ubuntu-22.04-arm
+            runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -57,7 +58,7 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: hub-gl235-${{ matrix.arch }}
+          key: hub-${{ matrix.arch }}
           cache-all-crates: true
 
       - name: Restore dx CLI
@@ -65,7 +66,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cargo/bin/dx
-          key: dx-0.7.9-gl235-${{ matrix.arch }}
+          key: dx-0.7.9-${{ matrix.arch }}
 
       - name: Install dx CLI
         if: steps.dxcache.outputs.cache-hit != 'true'

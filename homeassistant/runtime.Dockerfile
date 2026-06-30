@@ -4,7 +4,9 @@
 #
 # (homeassistant/Dockerfile remains the self-contained from-source build used when
 # the HA Supervisor has to build locally instead of pulling the prebuilt image.)
-FROM ghcr.io/home-assistant/base-debian:bookworm
+# Trixie (glibc 2.41), not bookworm: the hub is compiled on ubuntu-24.04 (glibc 2.39)
+# so the binary needs a runtime with glibc >= 2.39. See .github/workflows/build.yml.
+FROM ghcr.io/home-assistant/base-debian:trixie
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libssl3 \
