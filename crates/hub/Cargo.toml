@@ -14,8 +14,8 @@ modeldeck_shared = { workspace = true }
 # Server-only deps (not WASM-compatible)
 tokio = { version = "1", features = ["full"], optional = true }
 reqwest = { version = "0.12", features = ["json", "stream"], optional = true }
-surrealdb = { version = "3.2.0-beta.2", default-features = false, features = ["protocol-ws", "native-tls"], optional = true }
-surrealdb-types = { version = "3.2.0-beta.2", optional = true }
+surrealdb = { version = "4.0.0", default-features = false, features = ["protocol-ws", "native-tls"], optional = true }
+surrealdb-types = { version = "4.0.0", optional = true }
 openssl = { version = "0.10", features = ["vendored"], optional = true }
 dotenvy = { version = "0.15.7", optional = true }
 tower = { version = "0.5", optional = true }
